@@ -27,18 +27,18 @@ char nrf_payload[NRF_PAYLOAD_SIZE];
 
 // ── Calibration constants ────────────────────────────────────
 // pH sensor: adjust these two points after calibration with buffer solutions
-#define PH_VOLTAGE_AT_7   2.50   // volts at pH 7 (midpoint buffer)
-#define PH_VOLTAGE_AT_4   3.05   // volts at pH 4 (acid buffer)
+#define PH_VOLTAGE_AT_7   2.90   // volts at pH 7 (midpoint buffer)
+#define PH_VOLTAGE_AT_4   3.40   // volts at pH 4 (acid buffer)
 
 // ADC Reference: 5V, 10-bit resolution (1023 steps)
 #define ADC_REF_VOLTAGE   5.0
 #define ADC_RESOLUTION    1023.0
 
 // Turbidity: raw ADC 0–1023 mapped to NTU 0–1000 (invert: high voltage = clear)
-#define TURB_NTU_MAX      1000.0
+#define TURB_NTU_MAX      300.0
 
 // ── Sample averaging ─────────────────────────────────────────
-#define SAMPLES           10     // readings averaged per sensor per cycle
+#define SAMPLES           20     // readings averaged per sensor per cycle
 
 // ── Timing ───────────────────────────────────────────────────
 #define SEND_INTERVAL_MS  2000
@@ -113,7 +113,7 @@ float readPH() {
   long sum = 0;
   for (int i = 0; i < SAMPLES; i++) {
     sum += analogRead(PH_PIN);
-    delay(10);
+    delay(20);
   }
   float avgADC  = (float)sum / SAMPLES;
   float voltage = (avgADC / ADC_RESOLUTION) * ADC_REF_VOLTAGE;
@@ -130,7 +130,7 @@ float readTurbidity() {
   long sum = 0;
   for (int i = 0; i < SAMPLES; i++) {
     sum += analogRead(TURBIDITY_PIN);
-    delay(10);
+    delay(20);
   }
   float avgADC = (float)sum / SAMPLES;
 
