@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Water Quality Monitor</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <style>
+    /* ── Reset & base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --border:    rgba(255,255,255,0.08);
+      --text:      #e8eaf0;
+      --muted:     #8a8fa8;
+
+      --safe:      #22c55e;
+      --safe-bg:   rgba(34,197,94,0.12);
+      --caution:   #f59e0b;
+      --caution-bg:rgba(245,158,11,0.12);
+      --unsafe:    #ef4444;
+      --unsafe-bg: rgba(239,68,68,0.12);
+
+      --blue:      #60a5fa;
+      --teal:      #2dd4bf;
+      --amber:     #fbbf24;
+      --purple:    #a78bfa;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #1d4ed8, #2dd4bf);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+
+    header h1 { font-size: 18px; font-weight: 600; }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .refresh-badge {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 99px;
+    }
+
+    .btn {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn:hover { background: rgba(255,255,255,0.07); }
+
+    /* ── Status banner ───────────────────────────────────── */
+    #status-banner {
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      transition: background .4s, color .4s;
+    }
+
+    #status-banner .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: .4; }
+    }
+
+    /* ── Main layout ─────────────────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* ── Metric cards ─────────────────────────────────────── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 14px 14px 0 0;
+    }
+    .metric-card.temp::before  { background: var(--amber); }
+    .metric-card.ph::before    { background: var(--teal);  }
+    .metric-card.turb::before  { background: var(--blue);  }
+    .metric-card.status::before{ background: var(--purple);}
+
+    .metric-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .metric-value {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .metric-unit {
+      font-size: 14px;
+      color: var(--muted);
+      margin-left: 4px;
+      font-weight: 400;
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* ── Charts ──────────────────────────────────────────── */
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .chart-card h3 {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+    }
+
+    .chart-wrap { position: relative; height: 180px; }
+
+    /* ── Data table ──────────────────────────────────────── */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table-header h3 { font-size: 14px; font-weight: 600; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      background: var(--surface2);
+      font-weight: 500;
+    }
+
+    td {
+      padding: 11px 16px;
+      border-top: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    tbody tr:hover td { background: rgba(255,255,255,0.025); }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      padding: 3px 9px;
+      border-radius: 99px;
+    }
+
+    .badge-SAFE    { background: var(--safe-bg);    color: var(--safe);    }
+    .badge-CAUTION { background: var(--caution-bg); color: var(--caution); }
+    .badge-UNSAFE  { background: var(--unsafe-bg);  color: var(--unsafe);  }
+    .badge-GOOD    { background: var(--safe-bg);    color: var(--safe);    }
+    .badge-OK      { background: var(--caution-bg); color: var(--caution); }
+    .badge-BAD     { background: var(--unsafe-bg);  color: var(--unsafe);  }
+
+    /* ── No data ─────────────────────────────────────────── */
+    #no-data {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* ── Connection state ─────────────────────────────────── */
+    #conn-state {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin-top: 24px;
+    }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .charts  { grid-template-columns: 1fr; }
+      .metric-value { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">💧</div>
+    <div>
+      <h1>Water Quality Monitor</h1>
+      <p>Arduino + ESP32 · Real-time dashboard</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="refresh-badge" id="last-update">Waiting for data…</span>
+    <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
+</header>
+
+<!-- ── Status banner ──────────────────────────────────────── -->
+<div id="status-banner">
+  <div class="dot" id="status-dot" style="background:var(--muted)"></div>
+  <span id="status-text">Connecting to backend…</span>
+  <span id="conn-state"></span>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<main>
+
+  <!-- Metric cards -->
+  <div class="metrics">
+    <div class="metric-card temp">
+      <div class="metric-label">Temperature</div>
+      <div class="metric-value" id="m-temp">–<span class="metric-unit">°C</span></div>
+      <div class="metric-sub" id="m-temp-sub">Normal: 15–30°C</div>
+    </div>
+    <div class="metric-card ph">
+      <div class="metric-label">pH Value</div>
+      <div class="metric-value"><span id="m-ph-value">–</span> <span id="ph-badge" class="badge"></span></div>
+      <div class="metric-sub" id="m-ph-sub">Safe: 6.5–8.5</div>
+    </div>
+    <div class="metric-card turb">
+      <div class="metric-label">Turbidity</div>
+      <div class="metric-value" id="m-turb">–<span class="metric-unit">NTU</span></div>
+      <div class="metric-sub" id="m-turb-sub">Good: &lt;100 NTU</div>
+    </div>
+    <div class="metric-card status">
+      <div class="metric-label">Last reading</div>
+      <div class="metric-value" id="m-readings" style="font-size:28px">0</div>
+      <div class="metric-sub" id="m-time">–</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="chart-card">
+      <h3>Temperature (°C)</h3>
+      <div class="chart-wrap"><canvas id="chart-temp"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>pH Value</h3>
+      <div class="chart-wrap"><canvas id="chart-ph"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Turbidity (NTU)</h3>
+      <div class="chart-wrap"><canvas id="chart-turb"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Recent readings table -->
+  <div class="table-card">
+    <div class="table-header">
+      <h3>Recent Readings</h3>
+      <span style="font-size:12px;color:var(--muted)" id="reading-count">0 records</span>
+    </div>
+    <div id="no-data">No data yet — waiting for ESP32…</div>
+    <div id="table-wrap" style="display:none; overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Temperature</th>
+            <th>pH</th>
+            <th>Turbidity</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>Water Quality Monitoring System · Arduino + ESP32 + Node.js</footer>
+
+<!-- ── Scripts ─────────────────────────────────────────────── -->
+<script>
+// ── Config ─────────────────────────────────────────────────
+const API_BASE      = 'http://localhost:3000';   // Change to your server IP if different
+const POLL_INTERVAL = 5000;   // ms between GET /sensor-data calls
+const CHART_POINTS  = 30;     // max points on each chart
+const TABLE_ROWS    = 20;     // max rows in table
+
+// ── Chart setup ────────────────────────────────────────────
+Chart.defaults.color          = '#8a8fa8';
+Chart.defaults.borderColor    = 'rgba(255,255,255,0.06)';
+
+const chartDefaults = (color, label, yMin, yMax) => ({
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label,
+      data: [],
+      borderColor: color,
+      backgroundColor: color + '22',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      tension: 0.4,
+      fill: true,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    scales: {
+      x: { ticks: { maxTicksLimit: 6, font: { size: 11 } }, grid: { display: false } },
+      y: {
+        min: yMin, max: yMax,
+        ticks: { font: { size: 11 } },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      }
+    },
+    plugins: { legend: { display: false } }
+  }
+});
+
+const tempChart = new Chart(
+  document.getElementById('chart-temp'),
+  chartDefaults('#fbbf24', 'Temperature (°C)', 0, 50)
+);
+const phChart = new Chart(
+  document.getElementById('chart-ph'),
+  chartDefaults('#2dd4bf', 'pH', 0, 14)
+);
+const turbChart = new Chart(
+  document.getElementById('chart-turb'),
+  chartDefaults('#60a5fa', 'Turbidity (NTU)', 0, 600)
+);
+
+function pushToChart(chart, label, value) {
+  const d = chart.data;
+  d.labels.push(label);
+  d.datasets[0].data.push(value);
+  if (d.labels.length > CHART_POINTS) {
+    d.labels.shift();
+    d.datasets[0].data.shift();
+  }
+  chart.update('none');
+}
+
+// ── Status helpers ─────────────────────────────────────────
+function setStatus(status) {
+  const banner = document.getElementById('status-banner');
+  const dot    = document.getElementById('status-dot');
+  const text   = document.getElementById('status-text');
+
+  const map = {
+    SAFE:    { bg: 'var(--safe-bg)',    dot: 'var(--safe)',    label: '✓ Water quality is SAFE'        },
+    CAUTION: { bg: 'var(--caution-bg)', dot: 'var(--caution)', label: '⚠ Water quality needs CAUTION' },
+    UNSAFE:  { bg: 'var(--unsafe-bg)',  dot: 'var(--unsafe)',  label: '✕ Water quality is UNSAFE'      },
+  };
+  const cfg = map[status] || { bg: 'transparent', dot: 'var(--muted)', label: 'Status unknown' };
+  banner.style.background = cfg.bg;
+  dot.style.background    = cfg.dot;
+  text.textContent        = cfg.label;
+}
+
+function getPhStatus(ph) {
+  if (ph >= 6.5 && ph <= 8.5) {
+    if (Math.abs(ph - 7.0) <= 0.2) return { status: 'GOOD', label: 'Good' };
+    return { status: 'OK', label: 'OK' };
+  }
+  return { status: 'BAD', label: 'Bad' };
+}
+
+// ── Table rendering ────────────────────────────────────────
+function renderTable(rows) {
+  const tbody = document.getElementById('tbody');
+  const recent = [...rows].reverse().slice(0, TABLE_ROWS);
+
+  tbody.innerHTML = recent.map(r => {
+    const t = new Date(r.timestamp);
+    const timeStr = t.toLocaleTimeString();
+    const phStatus = getPhStatus(r.ph);
+    return `
+      <tr>
+        <td>${timeStr}</td>
+        <td>${r.temperature.toFixed(1)} °C</td>
+        <td>${r.ph.toFixed(1)} <span class="badge badge-${phStatus.status}">${phStatus.label}</span></td>
+        <td>${r.turbidity.toFixed(0)} NTU</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('no-data').style.display   = rows.length ? 'none' : 'block';
+  document.getElementById('table-wrap').style.display = rows.length ? 'block' : 'none';
+  document.getElementById('reading-count').textContent = `${rows.length} record${rows.length !== 1 ? 's' : ''}`;
+}
+
+// ── Metric card update ─────────────────────────────────────
+let knownCount = 0;
+
+function updateMetrics(r, totalCount) {
+  document.getElementById('m-temp').innerHTML =
+    `${r.temperature.toFixed(1)}<span class="metric-unit">°C</span>`;
+  document.getElementById('m-ph-value').textContent  = r.ph.toFixed(1);
+  document.getElementById('m-turb').innerHTML  =
+    `${r.turbidity.toFixed(0)}<span class="metric-unit">NTU</span>`;
+  document.getElementById('m-readings').textContent = totalCount;
+  document.getElementById('m-time').textContent =
+    new Date(r.timestamp).toLocaleTimeString();
+
+  // Update pH badge
+  const phStatus = getPhStatus(r.ph);
+  const badge = document.getElementById('ph-badge');
+  badge.className = `badge badge-${phStatus.status}`;
+  badge.textContent = phStatus.label;
+
+  document.getElementById('last-update').textContent =
+    'Last update: ' + new Date().toLocaleTimeString();
+}
+
+// ── Main fetch loop ────────────────────────────────────────
+let previousTimestamp = null;
+
+async function fetchData() {
+  try {
+    const resp = await fetch(`${API_BASE}/sensor-data?limit=${CHART_POINTS}`);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    const json = await resp.json();
+    const { readings, count } = json;
+    if (!readings || readings.length === 0) return;
+
+    const latest = readings[readings.length - 1];
+
+    // Only push new points to chart
+    const newReadings = previousTimestamp
+      ? readings.filter(r => r.timestamp > previousTimestamp)
+      : readings;
+
+    newReadings.forEach(r => {
+      const label = new Date(r.timestamp).toLocaleTimeString();
+      pushToChart(tempChart, label, r.temperature);
+      pushToChart(phChart,   label, r.ph);
+      pushToChart(turbChart, label, r.turbidity);
+    });
+
+    if (newReadings.length > 0) {
+      previousTimestamp = latest.timestamp;
+    }
+
+    updateMetrics(latest, count);
+    setStatus(latest.status);
+    renderTable(readings);
+
+    document.getElementById('conn-state').textContent = '';
+
+  } catch (err) {
+    console.warn('[Fetch]', err.message);
+    document.getElementById('conn-state').textContent =
+      '— Cannot reach backend at ' + API_BASE;
+  }
+}
+
+// ── CSV export ─────────────────────────────────────────────
+function exportCSV() {
+  window.open(API_BASE + '/sensor-export', '_blank');
+}
+
+// ── Start polling ──────────────────────────────────────────
+fetchData();
+setInterval(fetchData, POLL_INTERVAL);
+</script>
+</body>
+</html>

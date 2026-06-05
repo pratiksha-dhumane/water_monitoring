@@ -1,0 +1,327 @@
+================================================================================
+                        WATER QUALITY MONITORING SYSTEM
+================================================================================
+
+PROJECT OVERVIEW:
+=================
+This is a complete IoT water quality monitoring system that combines:
+- Arduino UNO/Nano (UNDERWATER TRANSMITTER) for sensor data collection
+- ESP32 (GATEWAY) for WiFi connectivity and OLED display
+- Node.js Express backend for data storage and API
+- HTML/CSS/JavaScript frontend dashboard with live charts
+
+The system monitors temperature, pH, and turbidity levels in real-time,
+displays readings on an OLED screen, sends data to a web server, and provides
+a live dashboard with historical data visualization.
+
+================================================================================
+HARDWARE COMPONENTS & DEPENDENCIES:
+================================================================================
+
+REQUIRED HARDWARE:
+------------------
+- Arduino UNO or Nano (1x)
+- ESP32 Dev Board (1x)
+- Turbidity Sensor Module (1x)
+- pH Sensor Module (1x)
+- Temperature Sensor (LM35 or DS18B20) (1x)
+- OLED Display Module (128x64 I²C SSD1306) (1x)
+- Resistors: 1kΩ (1x), 10kΩ (1x)
+- Jumper Wires (various)
+- NRF24L01+ Wireless Module (2x) - REQUIRED for Arduino & ESP32
+
+NRF24L01+ WIRELESS COMPONENTS:
+------------------------------
+- NRF24L01+ Module (2 pieces - one for Arduino, one for ESP32)
+- 10µF capacitor (for power decoupling, recommended)
+- 10kΩ resistor (for power regulation, optional)
+
+================================================================================
+PIN CONNECTIONS:
+================================================================================
+
+ARDUINO PIN CONNECTIONS (FINAL):
+------------------------
+| Sensor/Component | Arduino Pin | Wire Type    | Notes                    |
+|------------------|-------------|--------------|--------------------------|
+| pH Sensor VCC    | 5V          | Power        | Power supply             |
+| pH Sensor GND    | GND         | Power        | Ground                   |
+| pH Sensor PO     | A0          | Analog       | Analog output            |
+| Turbidity VCC    | 5V          | Power        | Power supply             |
+| Turbidity GND    | GND         | Power        | Ground                   |
+| Turbidity AO     | A1          | Analog       | Analog output            |
+| DS18B20 Red      | 5V          | Power        | Power supply             |
+| DS18B20 Black    | GND         | Power        | Ground                   |
+| DS18B20 Yellow   | D2          | Digital 1-W  | One-Wire protocol        |
+| 4.7k Resistor    | 5V→D2       | Pullup       | Between 5V and Yellow    |
+| Laser Module VCC | 5V          | Power        | Power supply             |
+| Laser Module GND | GND         | Power        | Ground                   |
+| Laser Module S   | 7           | Digital OUT  | Indicator light (always ON) |
+| NRF24L01+ CE     | D9          | Digital      | Chip Enable              |
+| NRF24L01+ CSN    | D10         | Digital      | Chip Select Not          |
+| NRF24L01+ MOSI   | D11         | Digital/SPI  | SPI Master Out Slave In  |
+| NRF24L01+ MISO   | D12         | Digital/SPI  | SPI Master In Slave Out  |
+| NRF24L01+ SCK    | D13         | Digital/SPI  | SPI Clock                |
+| NRF24L01+ GND    | GND         | Power        | Ground                   |
+| NRF24L01+ VCC    | 3.3V*       | Power        | Power (via capacitor)    |
+
+SENSOR PIN SUMMARY (UNDERWATER TRANSMITTER):
+---------------------------------------------
+- pH Sensor Input:          A0
+- Turbidity Sensor Input:   A1
+- DS18B20 Temperature:      Pin 2 (with 4.7k pullup to 5V)
+- Laser Indicator Light:    Pin 7 (always ON)
+- NRF24L01+ CE:             Pin 9
+- NRF24L01+ CSN:            Pin 10
+- NRF24L01+ SPI (11/12/13):
+
+ARDUINO → ESP32 WIRELESS CONNECTIONS (NRF24L01+):
+--------------------------------------------------
+Both devices communicate wirelessly via NRF24L01+ modules.
+No UART/Serial connection needed between them anymore.
+
+| Device  | NRF24L01+ Pin | Connection Type  | Notes                    |
+|---------|---------------|------------------|--------------------------|
+| Arduino | CE            | Pin 9            | Chip Enable              |
+| Arduino | CSN           | Pin 10           | Chip Select Not          |
+| Arduino | MOSI          | Pin 11 (SPI)     | Data To Module           |
+| Arduino | MISO          | Pin 12 (SPI)     | Data From Module         |
+| Arduino | SCK           | Pin 13 (SPI)     | Clock Signal             |
+| Arduino | VCC           | 3.3V+Capacitor   | Power with 10µF cap      |
+| Arduino | GND           | GND              | Ground                   |
+| ESP32   | CE            | GPIO12           | Chip Enable              |
+| ESP32   | CSN           | GPIO14           | Chip Select Not          |
+| ESP32   | MOSI          | GPIO23 (SPI)     | Data To Module           |
+| ESP32   | MISO          | GPIO19 (SPI)     | Data From Module         |
+| ESP32   | SCK           | GPIO18 (SPI)     | Clock Signal             |
+| ESP32   | VCC           | 3.3V+Capacitor   | Power with 10µF cap      |
+| ESP32   | GND           | GND              | Ground                   |
+
+ESP32 SPI CONNECTIONS (NRF24L01+):
+----------------------------------
+ESP32 uses custom SPI pins configured in code:
+- CE (Chip Enable)  → GPIO12
+- CSN (Chip Select) → GPIO14
+- MOSI              → GPIO23
+- MISO              → GPIO19
+- SCK (Clock)       → GPIO18
+- VCC (3.3V)        → With 10µF capacitor to GND (CRITICAL for stability)
+- GND               → GND
+
+ESP32 → OLED I²C CONNECTIONS (128x64 SSD1306):
+-----------------------------------------------
+| ESP32 Pin | OLED Pin | Notes                   |
+|-----------|----------|-------------------------|
+| GPIO21    | SDA      | I²C Data Line           |
+| GPIO22    | SCL      | I²C Clock Line          |
+| 3.3V      | VCC      | Power                   |
+| GND       | GND      | Ground                  |
+
+OPTIONAL OPTICAL LINK (NO WIRED CONNECTION):
+--------------------------------------------
+NOT USED - Replaced with NRF24L01+ wireless communication.
+
+================================================================================
+SOFTWARE DEPENDENCIES:
+================================================================================
+
+ARDUINO LIBRARIES (via Arduino IDE Library Manager):
+---------------------------------------------------
+- RF24 (by TMRh20) - REQUIRED for NRF24L01+ communication
+- OneWire (by Jim Studt, et al.) - REQUIRED for DS18B20 temperature sensor
+- DallasTemperature (by Miles Burton, et al.) - REQUIRED for DS18B20 sensor interface
+
+ESP32 LIBRARIES (via Arduino IDE Library Manager):
+--------------------------------------------------
+- Adafruit_SSD1306 (by Adafruit) - For OLED display (128x64)
+- Adafruit_GFX (by Adafruit) - Graphics library for OLED
+- ArduinoJson (by Benoit Blanchon) - For JSON handling
+- RF24 (by TMRh20) - REQUIRED for NRF24L01+ communication
+
+NODE.JS BACKEND DEPENDENCIES (from package.json):
+-------------------------------------------------
+Production Dependencies:
+- express: ^4.18.2 (Web framework)
+- cors: ^2.8.5 (Cross-origin resource sharing)
+
+Development Dependencies:
+- nodemon: ^3.0.1 (Auto-restart during development)
+
+FRONTEND DEPENDENCIES:
+----------------------
+- Chart.js 4.4.1 (via CDN): https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js
+
+================================================================================
+BACKEND INFORMATION (server.js):
+================================================================================
+
+FRAMEWORK: Node.js with Express.js
+PORT: 3000 (configurable via PORT environment variable)
+
+API ENDPOINTS:
+--------------
+POST /sensor-data
+- Receives sensor readings from ESP32
+- Body: { "temperature": 25.5, "ph": 7.2, "turbidity": 300 }
+- Returns: Success confirmation with stored record
+
+GET /sensor-data?limit=50
+- Returns latest N readings (default 50, max 500)
+- Response: JSON with count, latest record, and readings array
+
+GET /sensor-latest
+- Returns most recent reading only
+- Response: Single JSON record
+
+GET /sensor-export
+- Downloads complete data as CSV file
+- Filename: water_quality_data.csv
+
+DELETE /sensor-data
+- Clears in-memory buffer (file remains unchanged)
+
+DATA STORAGE:
+-------------
+- In-memory ring buffer: Last 500 readings
+- File storage: data/data.txt (CSV format)
+- CSV Headers: timestamp,temperature,ph,turbidity,status
+
+STATUS DETERMINATION LOGIC:
+---------------------------
+- SAFE: pH 6.5-8.5, Turbidity <100, Temp 10-35°C
+- CAUTION: Outside optimal ranges but not critical
+- UNSAFE: pH <6.0 or >9.0, or Turbidity >300
+
+================================================================================
+FRONTEND INFORMATION (index.html):
+================================================================================
+
+TECHNOLOGIES:
+-------------
+- HTML5
+- CSS3 (Custom properties/variables)
+- JavaScript (ES6+)
+- Chart.js for data visualization
+
+FEATURES:
+---------
+- Real-time sensor readings display
+- Status indicators (SAFE/CAUTION/UNSAFE)
+- Live updating charts (Temperature, pH, Turbidity)
+- Historical data visualization
+- Auto-refresh every 5 seconds
+- Responsive design
+- Dark theme UI
+
+CHART TYPES:
+------------
+- Line chart for temperature over time
+- Line chart for pH over time
+- Bar chart for turbidity levels
+
+UI COMPONENTS:
+--------------
+- Header with logo and refresh indicator
+- Status banner with current readings
+- Three chart containers
+- Export button for CSV download
+
+================================================================================
+SETUP & INSTALLATION:
+================================================================================
+
+1. ARDUINO FIRMWARE (UNDERWATER TRANSMITTER):
+   - Open arduino_sensor_node.ino in Arduino IDE
+   - Install RF24, OneWire, and DallasTemperature libraries
+   - Select board: Arduino UNO/Nano
+   - Verify final pin connections:
+     * pH Sensor → A0
+     * Turbidity Sensor → A1
+     * DS18B20 Temp (with 4.7k pullup) → Pin 2
+     * Laser Indicator Light → Pin 7 (blinks during transmission)
+     * NRF24L01+ CE → Pin 9, CSN → Pin 10
+     * NRF24L01+ SPI → Pins 11/12/13
+   - Add 10µF capacitor to NRF24L01+ VCC for stability
+   - Upload firmware
+   - Check Serial Monitor (9600 baud) for initialization messages:
+     * "[LASER] Initialized as indicator (always ON)"
+     * "[DS18B20] Initialized"
+     * "[NRF] Initialized OK"
+   - Laser should be continuously ON as visual indicator
+
+2. ESP32 FIRMWARE:
+   - Open esp32_gateway.ino in Arduino IDE
+   - Install Adafruit_SSD1306, Adafruit_GFX, RF24, and ArduinoJson libraries
+   - Configure WiFi credentials and server URL in code
+   - Verify NRF24L01+ connections (CE: GPIO12, CSN: GPIO14, SPI: GPIO18/19/23)
+   - Verify OLED connections (SDA: GPIO21, SCL: GPIO22, I2C address: 0x3C)
+   - Select board: ESP32 Dev Module
+   - Upload firmware
+   - Check Serial Monitor (115200 baud) for "[NRF] Initialized OK" message
+   - OLED should display "Water Monitor" and sensor readings
+
+3. HARDWARE SETUP:
+   - Connect NRF24L01+ modules to both Arduino and ESP32 as per PIN CONNECTIONS
+   - Add 10µF capacitors to both NRF24L01+ VCC lines (CRITICAL for stability)
+   - Use same 5-byte address "00001" on both modules for pairing
+   - Keep modules within 30-50 meters for reliable communication
+   - Avoid metal obstacles between modules
+
+4. BACKEND SERVER:
+   - cd to project directory
+   - npm install
+   - node server.js (or npm start)
+   - Server runs on http://localhost:3000
+
+5. FRONTEND DASHBOARD:
+   - Open http://localhost:3000 in web browser
+   - Dashboard loads automatically
+   - Charts update every 5 seconds
+
+================================================================================
+DATA FLOW:
+================================================================================
+
+1. Arduino reads sensors (Turbidity, pH, Temperature)
+2. Arduino sends data via NRF24L01+ wireless: "T:25.5,PH:7.2,TURB:300\n"
+3. ESP32 receives data via NRF24L01+, displays on OLED, sends to backend via HTTP POST
+4. Backend stores data in memory and CSV file
+5. Frontend polls backend every 5 seconds for latest data
+6. Charts update with new readings and status indicators
+
+================================================================================
+TROUBLESHOOTING:
+================================================================================
+
+COMMON ISSUES:
+--------------
+- NRF24L01+ not initializing: Check SPI connections and 10µF capacitor on VCC
+- ESP32 not receiving Arduino data: Verify both modules have same address "00001"
+- Intermittent communication: Add shielding, reduce distance, check power supply
+- OLED not displaying: Verify I²C address (0x3C) and connections (SDA: GPIO21, SCL: GPIO22)
+- Backend not receiving data: Check WiFi credentials and server URL
+- Charts not updating: Verify CORS settings and API endpoints
+- Sensor readings inaccurate: Calibrate pH sensor with buffer solutions
+
+TESTING:
+--------
+- Use Arduino Serial Monitor (9600 baud) to verify "[TX]" messages
+- Use ESP32 Serial Monitor (115200 baud) to verify "[RX-NRF]" messages on OLED
+- Check that both "[NRF] Initialized OK" messages appear on startup
+- Verify laser light is continuously ON on Arduino (visual indicator of operation)
+- Verify NRF24L01+ module power (red LED should light up)
+- Verify OLED displays sensor readings (I²C address: 0x3C)
+- Check backend console for incoming POST requests
+- Use browser dev tools to check frontend API calls
+
+================================================================================
+VERSION INFO:
+================================================================================
+
+Project Version: 1.0.0
+Last Updated: May 2026
+Compatible Arduino IDE: 1.8.x+
+Compatible ESP32 Board Package: 2.x+
+Node.js Version: 14.x+ recommended
+
+================================================================================
