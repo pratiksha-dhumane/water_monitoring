@@ -30,11 +30,11 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // ── WiFi credentials ─────────────────────────────────────────
-const char* WIFI_SSID     = "rupesh009";
-const char* WIFI_PASSWORD = "rupesh009";
+const char* WIFI_SSID     = "Pratiksha";
+const char* WIFI_PASSWORD = "pratiksha14";
 
 // ── Backend API ───────────────────────────────────────────────
-const char* SERVER_URL = "http://10.231.49.14:3000/sensor-data";
+const char* SERVER_URL = "http://10.106.174.196:3000/sensor-data";
 // Example: "http://192.168.1.100:3000/sensor-data"
 
 // ── NRF24L01+ wireless link ──────────────────────────────────
